@@ -4,13 +4,7 @@ This repository contains the necessary files to deploy cross organization with A
 
 By default ADF does not allow you to deploy outside the current organization. In order to make this possible we have to make a couple of changes to the CDK of ADF. 
 
-First of all we have to make sure that the account that we are going to deploy to is bootstrapped. We have to do this manually because this account is located outside the organization. You can find the default bootstrapping file on the github repo: 
-
-Make sure to provide the parameters in this template with the correct values.
-
-
-
-
+First of all we have to make sure that the account that we are going to deploy to is bootstrapped. We have to do this manually because this account is located outside the organization. You can find the default bootstrapping file in this repo. Make sure to provide the parameters in this template with the correct values.
 
 Next on, we have to add the organization of the target account outside the organization to the S3 bucket en KMS policy. By default only the organization where ADF is deployed is allowed. You can do this manually by navigation via the AWS Console or you can make changes to the file that bootstraps the deployment account. Add the organization id of the target account to the KMS and PipelineBucketPolicy. This file is located in ‘adf-bootstrap’ → ‘deployment’ → ‘global.yml’.
 

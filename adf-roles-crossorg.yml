@@ -1,0 +1,396 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ""
+Parameters:
+  DeploymentAccountId:
+    Description: Id of the deployment account 
+    Type: String
+    Default: "123456789123"
+  KMSKeyId:
+    Description: Id of the KMS key  
+    Type: String
+    Default: "XXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXX"
+  S3Bucket:
+    Description: Name of the S3 deployment bucket 
+    Type: String
+    Default: "adf-global-base-deployment-pipelinebucket-XXXXXXXXXXXX"
+  KMSRegion:
+    Description: Region of the kms key 
+    Type: String
+    Default: "eu-west-1" 
+
+Resources:
+    SSMParameter:
+        Type: "AWS::SSM::Parameter"
+        Properties:
+            Name: "bucket_name"
+            Type: "String"
+            Value: !Sub "${S3Bucket}"
+            DataType: "text"
+            Description: "DO NOT EDIT - Used by The AWS Deployment Framework"
+            Tier: "Standard"
+
+    SSMParameter2:
+        Type: "AWS::SSM::Parameter"
+        Properties:
+            Name: "deployment_account_id"
+            Type: "String"
+            Value: !Sub "${DeploymentAccountId}"
+            DataType: "text"
+            Description: "DO NOT EDIT - Used by The AWS Deployment Framework"
+            Tier: "Standard"
+
+    SSMParameter3:
+        Type: "AWS::SSM::Parameter"
+        Properties:
+            Name: "kms_arn"
+            Type: "String"
+            Value: !Sub "arn:aws:kms:${KMSRegion}:${SSMParameter2.Value}:key/${KMSKeyId}"
+            DataType: "text"
+            Description: "DO NOT EDIT - Used by The AWS Deployment Framework"
+            Tier: "Standard"
+
+    IAMRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            RoleName: "adf-automation-role"
+            AssumeRolePolicyDocument: 
+              Version: "2012-10-17" 
+              Statement:
+                Sid: "AssumeRole"
+                Effect: "Allow"
+                Principal: 
+                  AWS: !Sub "arn:aws:iam::${DeploymentAccountId}:role/adf-pipeline-provisioner-codebuild-role"
+                Action: "sts:AssumeRole"
+            MaxSessionDuration: 3600
+            Description: ""
+            Tags: 
+              - 
+                Key: "createdBy"
+                Value: "ADF"
+
+    IAMRole2:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            RoleName: "adf-cloudformation-deployment-role"
+            AssumeRolePolicyDocument: 
+              Version: "2012-10-17"
+              Statement: 
+                - Sid: "CloudFormation" 
+                  Effect: "Allow" 
+                  Principal: 
+                    Service: "cloudformation.amazonaws.com"
+                  Action: "sts:AssumeRole"
+                - Sid: "AssumeRoleLambda" 
+                  Effect: "Allow" 
+                  Principal: 
+                    AWS: !Sub "arn:aws:iam::${DeploymentAccountId}:role/adf-lambda-role"
+                  Action: "sts:AssumeRole"
+                - Sid: "AssumeRole"
+                  Effect: "Allow" 
+                  Principal: 
+                    AWS: !Sub "arn:aws:iam::${DeploymentAccountId}:role/adf-codepipeline-role" 
+                  Action: "sts:AssumeRole" 
+                  Condition: 
+                    ArnEquals: 
+                      aws:SourceArn: !Sub "arn:aws:codepipeline:${AWS::Region}:${DeploymentAccountId}:*"
+            MaxSessionDuration: 3600
+            Description: ""
+            Tags: 
+              - 
+                Key: "createdBy"
+                Value: "ADF"
+
+    IAMRole3:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            RoleName: "adf-cloudformation-role"
+            AssumeRolePolicyDocument: 
+              Version: "2012-10-17"
+              Statement: 
+                Effect: "Allow" 
+                Principal: 
+                  AWS: 
+                    - !Sub "arn:aws:iam::${DeploymentAccountId}:role/adf-codepipeline-role"
+                    - !Sub "arn:aws:iam::${DeploymentAccountId}:role/adf-cloudformation-role" 
+                Action: "sts:AssumeRole"
+            MaxSessionDuration: 3600
+            Description: ""
+            Tags: 
+              - 
+                Key: "createdBy"
+                Value: "ADF"
+
+    IAMRole4:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            RoleName: "adf-codecommit-role"
+            AssumeRolePolicyDocument: 
+              Version: "2012-10-17" 
+              Statement: 
+                - 
+                  Effect: "Allow" 
+                  Principal: 
+                    AWS: !Sub "arn:aws:iam::${DeploymentAccountId}:role/adf-codepipeline-role"
+                  Action: "sts:AssumeRole"
+                - 
+                  Effect: "Allow" 
+                  Principal: 
+                    Service: "events.amazonaws.com"
+                  Action: "sts:AssumeRole"
+            MaxSessionDuration: 3600
+            Description: ""
+            Tags: 
+              - 
+                Key: "createdBy"
+                Value: "ADF"
+
+    IAMRole5:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: "/"
+            RoleName: "adf-readonly-automation-role"
+            AssumeRolePolicyDocument: 
+              Version: "2012-10-17" 
+              Statement: 
+                - Sid: "AssumeRole"
+                  Effect: "Allow" 
+                  Principal: 
+                    AWS: !Sub "arn:aws:iam::${DeploymentAccountId}:role/adf-codebuild-role"
+                  Action: "sts:AssumeRole"
+            MaxSessionDuration: 3600
+            Description: ""
+            Tags: 
+              - 
+                Key: "createdBy"
+                Value: "ADF"
+
+    IAMPolicy:
+        Type: "AWS::IAM::Policy"
+        Properties:
+            PolicyDocument: 
+              Version: "2012-10-17" 
+              Statement:
+                - Sid: "CloudFormation" 
+                  Action: 
+                    - "cloudformation:*" 
+                    - "codedeploy:*" 
+                    - "iam:PassRole"
+                    - "servicecatalog:CreateProvisioningArtifact"
+                    - "servicecatalog:DeleteProvisioningArtifact"
+                    - "servicecatalog:DescribeProvisioningArtifact"
+                    - "servicecatalog:ListProvisioningArtifacts"
+                    - "servicecatalog:UpdateProduct"
+                  Resource: "*"
+                  Effect: "Allow"
+                - Sid: "S3"
+                  Action: 
+                    - "s3:Get*"
+                    - "s3:List*"
+                    - "s3:Put*"
+                  Resource: 
+                    - !Sub "arn:aws:s3:::${S3Bucket}"
+                    - !Sub "arn:aws:s3:::${S3Bucket}/*"
+                  Effect: "Allow"
+                - Sid: "KMS"
+                  Action: 
+                    - "kms:Decrypt"
+                    - "kms:DescribeKey"
+                    - "kms:Encrypt"
+                    - "kms:GenerateDataKey*"
+                    - "kms:ReEncrypt*"
+                  Resource: 
+                    - !Sub "arn:aws:kms:${KMSRegion}:${DeploymentAccountId}:key/${KMSKeyId}"
+                  Effect: "Allow" 
+            Roles: 
+              - !Ref IAMRole3
+            PolicyName: !Sub "${IAMRole3}-policy"
+
+    IAMPolicy2:
+        Type: "AWS::IAM::Policy"
+        Properties:
+            PolicyDocument: 
+              Version: "2012-10-17" 
+              Statement: 
+              - Sid: "S3"
+                Action: 
+                  - "s3:Get*" 
+                  - "s3:List*"
+                Resource: 
+                  - !Sub "arn:aws:s3:::${S3Bucket}/adf-build/templates/*"
+                Effect: "Allow" 
+              - Sid: "CloudFormation"
+                Action: 
+                  - "cloudformation:CancelUpdateStack" 
+                  - "cloudformation:ContinueUpdateRollback"
+                  - "cloudformation:CreateChangeSet"
+                  - "cloudformation:CreateStack"
+                  - "cloudformation:DeleteChangeSet"
+                  - "cloudformation:DeleteStack"
+                  - "cloudformation:DescribeChangeSet"
+                  - "cloudformation:DescribeStacks"
+                  - "cloudformation:ExecuteChangeSet"
+                  - "cloudformation:SetStackPolicy"
+                  - "cloudformation:SignalResource"
+                  - "cloudformation:UpdateStack"
+                  - "cloudformation:UpdateTerminationProtection"
+                Resource: 
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/adf-codecommit-*/*"
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/adf-event-rule-${AWS::AccountId}-*/*"
+                Effect: "Allow" 
+              - Sid: "CodeCommit"  
+                Action:
+                  - "codecommit:CreateRepository"
+                  - "codecommit:UpdateRepository"
+                  - "codecommit:GetRepository"
+                  - "codecommit:TagResource"
+                Resource: "*"
+                Effect: "Allow" 
+              - Sid: "Events"
+                Action: 
+                  - "events:DescribeRule"
+                  - "events:EnableRule"
+                  - "events:ListRules"
+                  - "events:PutEvents"
+                  - "events:PutRule"
+                  - "events:PutTargets"
+                  - "cloudformation:ValidateTemplate"
+                Resource: "*"
+                Effect: "Allow"
+              - Sid: "SSM"
+                Action: 
+                  - "ssm:GetParameters"
+                  - "ssm:GetParameter"
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/bucket_name"
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/deployment_account_id"
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/kms_arn"
+                Effect: "Allow"
+              - Sid: "IAM"
+                Action:
+                  - "iam:CreateRole"
+                  - "iam:CreateRolePolicy"
+                  - "iam:DeleteRole"
+                  - "iam:DeleteRolePolicy"
+                  - "iam:GetRole" 
+                  - "iam:GetRolePolicy"
+                  - "iam:PassRole"
+                  - "iam:PutRolePolicy"
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/adf-event-rule-${AWS::AccountId}-${DeploymentAccountId}-EventRole-*"
+                Effect: "Allow" 
+            Roles: 
+              - !Ref IAMRole
+            PolicyName: !Sub "${IAMRole}-policy"
+
+    IAMPolicy3:
+        Type: "AWS::IAM::Policy"
+        Properties:
+            PolicyDocument: 
+              Version: "2012-10-17" 
+              Statement: 
+                -
+                  Action:
+                    - "codecommit:BatchGetRepositories"
+                    - "codecommit:CancelUploadArchive"
+                    - "codecommit:Get*"
+                    - "codecommit:GitPull"
+                    - "codecommit:List*"
+                    - "codecommit:UploadArchive"
+                    - "codepipeline:StartPipelineExecution" 
+                    - "events:PutEvents"
+                  Resource: "*"
+                  Effect: "Allow"
+                -
+                  Action: 
+                    - "s3:Get*"
+                    - "s3:List*"
+                    - "s3:Put*"
+                  Resource: 
+                    - !Sub "arn:aws:s3:::${S3Bucket}"
+                    - !Sub "arn:aws:s3:::${S3Bucket}/*"
+                  Effect: "Allow"
+                -
+                  Action:
+                    - "kms:Decrypt"
+                    - "kms:Describe*" 
+                    - "kms:DescribeKey" 
+                    - "kms:Encrypt" 
+                    - "kms:GenerateDataKey*"
+                    - "kms:Get*"
+                    - "kms:List*"
+                    - "kms:ReEncrypt*"
+                  Resource: 
+                    - !Sub "arn:aws:kms:${KMSRegion}:${DeploymentAccountId}:key/{KMSKeyId}"
+                  Effect: "Allow"
+            Roles: 
+              - !Ref IAMRole4
+            PolicyName: !Sub "${IAMRole4}-policy"
+
+    IAMPolicy4:
+        Type: "AWS::IAM::Policy"
+        Properties:
+            PolicyDocument: 
+              Version: "2012-10-17"
+              Statement: 
+                Action:
+                  - "ssm:GetParameter"
+                  - "ssm:GetParameters"
+                  - "cloudformation:DescribeStacks"
+                  - "cloudformation:ValidateTemplate"
+                Resource: "*"
+                Effect: "Allow"
+                Sid: "CloudFormation"
+            Roles: 
+              - !Ref IAMRole5
+            PolicyName: !Sub "${IAMRole5}-policy"
+
+    IAMPolicy5:
+        Type: "AWS::IAM::Policy"
+        Properties:
+            PolicyDocument: 
+              Version: "2012-10-17" 
+              Statement: 
+                Action: 
+                  - "apigateway:*" 
+                  - "cloudformation:*"
+                  - "ecr:*"
+                  - "ecs:*"
+                  - "ec2:*"
+                  - "iam:*"
+                  - "logs:*"
+                  - "s3:*"
+                  - "codedeploy:*"
+                  - "autoscaling:*"
+                  - "cloudwatch:*"
+                  - "elasticloadbalancing:*"
+                Resource: "*"
+                Effect: "Allow"
+                Sid: "CloudFormation"
+            Roles: 
+              - !Ref IAMRole2
+            PolicyName: !Sub "${IAMRole2}-policy"
+
+    IAMPolicy6:
+        Type: "AWS::IAM::Policy"
+        Properties:
+            PolicyDocument: 
+              Version: "2012-10-17"
+              Statement: 
+                Action: 
+                 - "kms:Decrypt"
+                 - "kms:DescribeKey"
+                 - "kms:Encrypt"
+                 - "kms:GenerateDataKey*"
+                 - "kms:ReEncrypt*"
+                Resource: 
+                  - !Sub "arn:aws:kms:${KMSRegion}:${DeploymentAccountId}:key/${KMSKeyId}"
+                Effect: "Allow"
+                Sid: "KMS"
+            Roles: 
+              - !Ref IAMRole2
+            PolicyName: !Sub "${IAMRole2}-policy-kms"
+

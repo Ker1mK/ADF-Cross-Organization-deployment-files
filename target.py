@@ -99,10 +99,10 @@ class Target:
         ).get('Account')
         self._create_response_object([responses])
 
-    def _target_is_account_id_extern(self):
+    def _target_is_external_account_id(self):
         responses = {
-            'Id': str(self.path), 
-            'Name': str(self.path), 
+            'Id': str(self.path[2:]),
+            'Name': str(self.path[2:]),
             'Status': 'ACTIVE'
         }
         self._create_response_object([responses])
@@ -157,10 +157,8 @@ class Target:
                 # in the correct way, starting with: 0o.
                 str(oct(int(self.path))).replace('o', ''),
             )
-        if str(self.path).startswith('//'):
-            self.path=self.path[2:]
-            if AWS_ACCOUNT_ID_REGEX.match(str(self.path)):
-                return self._target_is_account_id_extern()
+        if str(self.path).startswith('//') and AWS_ACCOUNT_ID_REGEX.match(str(self.path[2:])):
+            return self._target_is_external_account_id()
         if str(self.path).startswith('/'):
             return self._target_is_ou_path()
         if self.path is None:
